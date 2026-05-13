@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+.Ruserdata
+
+# Lean
+/.lake/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak

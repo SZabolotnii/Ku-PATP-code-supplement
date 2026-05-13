@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the associated PATP manuscript."
+title: "PATP Code Supplement"
+authors:
+  - family-names: "Zabolotnii"
+    given-names: "Serhii"
+    orcid: "https://orcid.org/0000-0003-0242-2234"
+version: "0.1.0"
+date-released: "2026-05-13"
+license: "MIT"
+keywords:
+  - "Kunchenko stochastic polynomials"
+  - "polynomial maximization method"
+  - "fractional moments"
+  - "robust estimation"
+  - "Lean"
+  - "R"
+repository-code: "https://github.com/serhiizabolotnii/patp-code-supplement"
