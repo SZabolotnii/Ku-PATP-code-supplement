@@ -19,7 +19,7 @@ theme_patp <- theme_bw(base_size = 11) +
         strip.background = element_rect(fill = "grey95"),
         strip.text = element_text(size = 9))
 
-fig_dir <- "../paper/figures"
+fig_dir <- "../figures"
 
 # Load data.
 mc_df <- read.csv("results/monte_carlo.csv")

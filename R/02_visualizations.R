@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # 02_visualizations.R -- theoretical PATP figures
-# Output: PDF figures in /Science/PATP/paper/figures/
+# Output: PDF figures in ../figures/
 # Date: 2026-05-11
 
 suppressPackageStartupMessages({
@@ -19,7 +19,7 @@ theme_patp <- theme_bw(base_size = 11) +
         strip.background = element_rect(fill = "grey95"),
         strip.text = element_text(size = 9))
 
-fig_dir <- "../paper/figures"
+fig_dir <- "../figures"
 dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
 
 # ===================================================================
