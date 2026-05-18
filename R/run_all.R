@@ -15,6 +15,23 @@ scripts <- c("01_theoretical_g2.R",
              "03_monte_carlo.R",
              "04_results_viz.R")
 
+# Resolve script directory so `Rscript R/run_all.R` from repo root works
+# the same as `cd R && Rscript run_all.R`.
+script_dir <- {
+  args <- commandArgs(trailingOnly = FALSE)
+  match <- grep("^--file=", args, value = TRUE)
+  if (length(match) > 0) {
+    dirname(sub("^--file=", "", match[1]))
+  } else if (file.exists("01_theoretical_g2.R")) {
+    "."
+  } else {
+    "R"
+  }
+}
+old_wd <- getwd()
+setwd(script_dir)
+on.exit(setwd(old_wd), add = TRUE)
+
 t_start <- Sys.time()
 for (s in scripts) {
   cat("\n=== Running", s, "===\n")
