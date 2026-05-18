@@ -19,7 +19,7 @@ theme_patp <- theme_bw(base_size = 11) +
         strip.background = element_rect(fill = "grey95"),
         strip.text = element_text(size = 9))
 
-fig_dir <- "../figures"
+fig_dir <- "../paper/figures"
 
 # Load data.
 mc_df <- read.csv("results/monte_carlo.csv")
@@ -133,5 +133,53 @@ fig7 <- ggplot(bv_df %>% filter(N == 200), aes(x = alpha, y = value,
 ggsave(file.path(fig_dir, "fig7_bias_variance.pdf"), fig7,
        width = 6.5, height = 4.5, device = cairo_pdf)
 cat("Saved fig7_bias_variance.pdf\n")
+
+# ===================================================================
+# Figure 8: full F^{-1}b vs proxy vs theoretical g_2(alpha)
+# (highlight the central Comp Stat contribution: correctness improvement)
+# ===================================================================
+
+fig8_df <- mc_df %>%
+  filter(N == 500) %>%
+  select(distribution, alpha,
+         g2_proxy = g2_empirical,
+         g2_full  = g2_empirical_full) %>%
+  pivot_longer(cols = c(g2_proxy, g2_full),
+               names_to = "estimator", values_to = "g2_emp") %>%
+  mutate(estimator = recode(estimator,
+                            g2_proxy = "Scalar M-estimator (proxy)",
+                            g2_full  = "Full F^{-1}b normal equations"),
+         distribution = factor(distribution,
+                               levels = c("Laplace", "GG(1.5)", "GG(4)", "Beta(2,5)")))
+
+fig8_theo <- theo_interp_df %>%
+  filter(distribution %in% levels(fig8_df$distribution)) %>%
+  mutate(distribution = factor(distribution,
+                               levels = c("Laplace", "GG(1.5)", "GG(4)", "Beta(2,5)")))
+
+fig8 <- ggplot() +
+  geom_line(data = fig8_theo,
+            aes(x = alpha, y = g2),
+            colour = "grey25", linewidth = 0.4) +
+  geom_point(data = fig8_df,
+             aes(x = alpha, y = g2_emp, colour = estimator, shape = estimator),
+             size = 2.5) +
+  facet_wrap(~ distribution, scales = "free_y") +
+  scale_colour_manual(values = c("Scalar M-estimator (proxy)" = "#e31a1c",
+                                  "Full F^{-1}b normal equations" = "#1f78b4"),
+                      name = "Estimator") +
+  scale_shape_manual(values = c("Scalar M-estimator (proxy)" = 17,
+                                 "Full F^{-1}b normal equations" = 16),
+                     name = "Estimator") +
+  labs(title = expression("Empirical " * g[2](alpha) * " under proxy vs full PMM normal equations (N = 500)"),
+       subtitle = "Solid grey line: closed-form theoretical g_2(alpha) from eq. (4.18). Full estimator approaches theory for symmetric laws.",
+       x = expression(alpha),
+       y = expression(hat(g)[2](alpha) * " = " * Var[hat(mu)[PATP]] * " / " * Var[hat(mu)[OLS]])) +
+  theme_patp +
+  theme(legend.position = "bottom")
+
+ggsave(file.path(fig_dir, "fig8_proxy_vs_full.pdf"), fig8,
+       width = 6.8, height = 5.2, device = cairo_pdf)
+cat("Saved fig8_proxy_vs_full.pdf\n")
 
 cat("\nAll experimental figures saved to", fig_dir, "\n")

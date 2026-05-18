@@ -1,12 +1,17 @@
 #!/usr/bin/env Rscript
 # 03_monte_carlo.R — Monte Carlo симуляції PATP проти OLS
 # PATP paper, §6.2 експериментальна валідація
-# Дата: 2026-05-11
+# Updated 2026-05-18: parallel proxy + full F^{-1}b estimator (Phase B)
 
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
 })
+
+# Full F^{-1}b estimator (defines p_i and patp_full).
+# Resolve path so script works from both repo root and R/ cwd.
+.this_dir <- if (file.exists("05_full_patp_estimator.R")) "." else "R"
+source(file.path(.this_dir, "05_full_patp_estimator.R"))
 
 set.seed(2026)
 
@@ -39,12 +44,9 @@ stopifnot(abs(var(rgg(100000, 4)) - 1) < 0.05)
 stopifnot(abs(var(rbeta25(100000)) - 1) < 0.05)
 
 # ===================================================================
-# 2. PATP оцінка через uniroot
+# 2. PATP estimators: proxy (scalar M-estimator) and full (F^{-1}b)
+# Note: p_i and patp_full are sourced from R/05_full_patp_estimator.R.
 # ===================================================================
-
-p_i <- function(i, alpha) {
-  1 / i + (4 - i - 3 / i) * alpha + (2 * i - 4 + 2 / i) * alpha^2
-}
 
 # Score function: Z(mu; alpha) = (1/N) Σ [h1*(-1) + h2*(-p|xi|^{p-1})] for xi = x - mu
 # Equivalent stationarity: dL/dmu = 0
@@ -72,7 +74,7 @@ p_i <- function(i, alpha) {
 # So: PATP-2 estimator solves mean(sign(x - mu) * |x - mu|^{p_2(alpha)}) = 0
 # This is the M-estimator interpretation.
 
-patp_estimator <- function(x, alpha, mu_init = NULL) {
+patp_estimator_proxy <- function(x, alpha, mu_init = NULL) {
   if (abs(alpha - 0.5) < 0.01) return(mean(x))  # degenerate -> OLS
   if (is.null(mu_init)) mu_init <- mean(x)
   p <- p_i(2, alpha)
@@ -83,7 +85,6 @@ patp_estimator <- function(x, alpha, mu_init = NULL) {
     xi <- x - mu
     mean(sign(xi) * abs(xi)^p)
   }
-  # Search bracket
   s_lo <- mu_init - 5 * sd(x)
   s_hi <- mu_init + 5 * sd(x)
   v_lo <- score(s_lo)
@@ -95,6 +96,9 @@ patp_estimator <- function(x, alpha, mu_init = NULL) {
     error = function(e) mu_init
   )
 }
+
+# Backward-compatible alias (used by older callers)
+patp_estimator <- patp_estimator_proxy
 
 # ===================================================================
 # 2A. Robust baseline estimators
@@ -170,25 +174,39 @@ for (dist_name in names(distributions)) {
 
     for (alpha in alpha_grid) {
       iter <- iter + 1
-      patp_means <- replicate(M, {
+      proxy_means <- numeric(M)
+      full_means  <- numeric(M)
+      for (j in seq_len(M)) {
         x <- rgen(N)
-        patp_estimator(x, alpha, mu_init = mean(x))
-      })
-      patp_means <- patp_means[!is.na(patp_means)]
-      var_patp <- var(patp_means)
-      bias_patp <- mean(patp_means)  # true mu = 0
-      mse_patp <- var_patp + bias_patp^2
+        mu0 <- mean(x)
+        proxy_means[j] <- patp_estimator_proxy(x, alpha, mu_init = mu0)
+        full_means[j]  <- patp_full(x, alpha, mu_init = mu0)
+      }
+      proxy_means <- proxy_means[is.finite(proxy_means)]
+      full_means  <- full_means[is.finite(full_means)]
+
+      var_proxy <- var(proxy_means);  bias_proxy <- mean(proxy_means)
+      var_full  <- var(full_means);   bias_full  <- mean(full_means)
+      mse_proxy <- var_proxy + bias_proxy^2
+      mse_full  <- var_full  + bias_full^2
 
       mc_results[[length(mc_results) + 1]] <- data.frame(
         distribution = dist_name,
         N = N,
         alpha = alpha,
-        var_ols = var_ols,
-        var_patp = var_patp,
-        bias = bias_patp,
-        mse = mse_patp,
-        are = var_ols / var_patp,
-        g2_empirical = var_patp / var_ols
+        var_ols       = var_ols,
+        # proxy
+        var_patp      = var_proxy,
+        bias          = bias_proxy,
+        mse           = mse_proxy,
+        are           = var_ols / var_proxy,
+        g2_empirical  = var_proxy / var_ols,
+        # full F^{-1}b
+        var_full      = var_full,
+        bias_full     = bias_full,
+        mse_full      = mse_full,
+        are_full      = var_ols / var_full,
+        g2_empirical_full = var_full / var_ols
       )
     }
     cat(sprintf("[%d/%d] %s, N=%d done\n",
@@ -260,7 +278,8 @@ time_call <- function(fun, reps = 50) {
 runtime_N <- c(100, 1000, 10000, 100000)
 runtime_results <- list()
 runtime_estimators <- c("mean", "median", "huber", "median_of_means",
-                        "patp_alpha_0.05", "patp_alpha_0.95")
+                        "patp_alpha_0.05", "patp_alpha_0.95",
+                        "patp_full_alpha_0.05", "patp_full_alpha_0.95")
 for (N in runtime_N) {
   x <- distributions$Laplace(N)
   reps <- if (N <= 100) 1000 else if (N <= 1000) 500 else if (N <= 10000) 100 else 20
@@ -270,8 +289,10 @@ for (N in runtime_N) {
       median = time_call(function() median(x), reps = reps),
       huber = time_call(function() huber_location(x), reps = reps),
       median_of_means = time_call(function() median_of_means(x), reps = reps),
-      patp_alpha_0.05 = time_call(function() patp_estimator(x, 0.05, mu_init = mean(x)), reps = reps),
-      patp_alpha_0.95 = time_call(function() patp_estimator(x, 0.95, mu_init = mean(x)), reps = reps)
+      patp_alpha_0.05      = time_call(function() patp_estimator_proxy(x, 0.05, mu_init = mean(x)), reps = reps),
+      patp_alpha_0.95      = time_call(function() patp_estimator_proxy(x, 0.95, mu_init = mean(x)), reps = reps),
+      patp_full_alpha_0.05 = time_call(function() patp_full(x, 0.05, mu_init = mean(x)), reps = reps),
+      patp_full_alpha_0.95 = time_call(function() patp_full(x, 0.95, mu_init = mean(x)), reps = reps)
     )
     runtime_results[[length(runtime_results) + 1]] <- data.frame(
       distribution = "Laplace",
@@ -298,7 +319,9 @@ write.csv(runtime_df, "results/runtime_summary.csv", row.names = FALSE)
 # Зведена таблиця
 summary_mc <- mc_df %>%
   filter(N %in% c(100, 500)) %>%
-  mutate(across(c(var_patp, bias, mse, are, g2_empirical), \(x) round(x, 4))) %>%
+  mutate(across(c(var_patp, bias, mse, are, g2_empirical,
+                  var_full, bias_full, mse_full, are_full,
+                  g2_empirical_full), \(x) round(x, 4))) %>%
   arrange(distribution, N, alpha)
 
 cat("\n=== Підсумок MC (N = 100, 500) ===\n")

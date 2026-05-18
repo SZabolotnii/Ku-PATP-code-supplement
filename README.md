@@ -9,8 +9,10 @@ The repository is intentionally separate from the manuscript repository. It cont
 ## Contents
 
 - `R/` - numerical pipeline for the theoretical curves, Monte Carlo experiments, robust baselines, alpha ablations, and runtime diagnostics.
-- `R/results/` - CSV outputs used by the manuscript figures and tables.
-- `figures/` - rendered PDF figures `fig1`-`fig7`.
+  - `R/05_full_patp_estimator.R` - reference implementation of Algorithm 1 (full F_2^{-1} b normal-equation solver via one-step Newey linearisation, with automatic scalar-proxy fallback when F_2 is ill-conditioned).
+  - `R/03_monte_carlo.R` - Monte Carlo driver that runs both the proxy and the full estimator in parallel and emits side-by-side columns.
+- `R/results/` - CSV outputs used by the manuscript figures and tables; includes `monte_carlo*.csv` with `*_full` columns for the full estimator.
+- `figures/` - rendered PDF figures `fig1`-`fig8`, including the new `fig8_proxy_vs_full.pdf` comparing the empirical g_2 of the proxy and the full estimator against the closed-form theoretical curve.
 - `Lean/` - Lean 4 formalization of the PATP exponent map, signed-parity basis facts, degeneracy at `alpha = 1/2`, entropy-coefficient algebra, and the compact algebraic step behind the `g_2(alpha)` formula.
 - `lakefile.lean`, `lean-toolchain` - Lean project configuration.
 
@@ -31,7 +33,12 @@ Rscript R/run_all.R
 The scripts regenerate:
 
 - CSV summaries under `R/results/`
-- PDF figures under `figures/`
+- PDF figures `fig1`-`fig8` under `figures/`
+
+Wall-clock on a single thread is approximately 40 seconds end-to-end; the
+dominant cost is the 1000-replicate Monte Carlo sweep in
+`03_monte_carlo.R`, which now executes both the proxy and the full
+F_2^{-1} b estimator for each grid point.
 
 ## Check the Lean formalization
 

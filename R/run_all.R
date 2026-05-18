@@ -1,20 +1,17 @@
 #!/usr/bin/env Rscript
-# run_all.R -- pipeline driver for the PATP numerical supplement.
-# Runs all scripts in sequence:
-#   01 -> theoretical g_2(alpha)
-#   02 -> theoretical figures fig1-fig4
-#   03 -> Monte Carlo simulations
-#   04 -> experimental figures fig5-fig7
+# run_all.R — Pipeline driver для PATP
+# Запускає всі скрипти послідовно:
+#   01 → теоретичні g_2(α)
+#   02 → теоретичні графіки fig1-fig4
+#   05 → визначення повного F^{-1}b PATP естиматора (Phase B)
+#   03 → Monte Carlo симуляції (proxy + full estimator)
+#   04 → експериментальні графіки fig5-fig8
 
-args_file <- commandArgs(trailingOnly = FALSE)
-file_arg <- "--file="
-script_path <- sub(file_arg, "", args_file[grepl(file_arg, args_file)][1])
-if (!is.na(script_path)) {
-  setwd(dirname(normalizePath(script_path)))
-}
-
+# Note: 05 is sourced inside 03 as well; listing it separately here
+# ensures self-test output appears in the run log.
 scripts <- c("01_theoretical_g2.R",
              "02_visualizations.R",
+             "05_full_patp_estimator.R",
              "03_monte_carlo.R",
              "04_results_viz.R")
 
