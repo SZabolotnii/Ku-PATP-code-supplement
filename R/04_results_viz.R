@@ -1,7 +1,10 @@
 #!/usr/bin/env Rscript
 # 04_results_viz.R -- experimental MC-result figures
 # PATP paper, §6.2
-# Date: 2026-05-11
+# Date: 2026-05-11; rewritten 2026-06-15 (AJS revision):
+#   - headline estimator switched from scalar proxy to full F_2^{-1}b
+#   - distributions restricted to symmetric laws (Beta(2,5) -> Student-t(6))
+#   - Fig 6 is now a CONVERGENCE validation (empirical g_2 -> closed-form theory)
 
 suppressPackageStartupMessages({
   library(ggplot2)
@@ -19,7 +22,10 @@ theme_patp <- theme_bw(base_size = 11) +
         strip.background = element_rect(fill = "grey95"),
         strip.text = element_text(size = 9))
 
-fig_dir <- "../paper/figures"
+fig_dir <- "../figures"
+
+# Symmetric illustration set (D6v2).
+sym_levels <- c("Laplace", "GG(1.5)", "GG(4)", "Student-t(6)")
 
 # Load data.
 mc_df <- read.csv("results/monte_carlo.csv")
@@ -32,14 +38,14 @@ theo_interp_df <- theo_df %>%
 
 # ===================================================================
 # Figure 5: ARE vs N across distributions and alpha values
+# (full F_2^{-1}b estimator)
 # ===================================================================
 
 fig5_df <- mc_df %>%
-  mutate(distribution = factor(distribution,
-                               levels = c("Laplace", "GG(1.5)", "GG(4)", "Beta(2,5)")),
+  mutate(distribution = factor(distribution, levels = sym_levels),
          alpha_lbl = factor(sprintf("α = %.2f", alpha)))
 
-fig5 <- ggplot(fig5_df, aes(x = N, y = are,
+fig5 <- ggplot(fig5_df, aes(x = N, y = are_full,
                             colour = alpha_lbl, group = alpha_lbl)) +
   geom_hline(yintercept = 1, linetype = "dashed", colour = "grey50", linewidth = 0.4) +
   geom_line(linewidth = 0.6) +
@@ -49,7 +55,8 @@ fig5 <- ggplot(fig5_df, aes(x = N, y = are,
                 labels = c("50", "100", "200", "500")) +
   scale_colour_viridis_d(option = "plasma", name = expression(alpha),
                         end = 0.85) +
-  labs(title = expression("Empirical ARE = " * Var[OLS]/Var[PATP] * " over 1000 MC replications"),
+  labs(title = expression("Empirical ARE = " * Var[OLS] / Var[hat(mu)[PATP]] *
+                          " (full " * F[2]^{-1} * bold(b) * " estimator, 1000 MC replications)"),
        x = "Sample size N",
        y = "ARE (PATP vs OLS)") +
   theme_patp
@@ -59,40 +66,45 @@ ggsave(file.path(fig_dir, "fig5_are_vs_N.pdf"), fig5,
 cat("Saved fig5_are_vs_N.pdf\n")
 
 # ===================================================================
-# Figure 6: empirical g_2 vs theoretical g_2 (proxy diagnostic scatter)
+# Figure 6: convergence of the full F_2^{-1}b estimator's empirical g_2 to the
+# closed-form theory g_2(alpha). This is the DIRECT validation of the paper's
+# central result (replaces the former proxy-diagnostic scatter).
 # ===================================================================
 
-# Join MC and theoretical values by interpolation.
-fig6_validation <- mc_df %>%
-  filter(N >= 200) %>%
-  rowwise() %>%
-  mutate(
-    g2_theo = {
-      dist_name <- distribution
-      sub <- theo_interp_df %>% filter(distribution == .env$dist_name)
-      if (nrow(sub) == 0) {
-        NA_real_
-      } else {
-        approx(sub$alpha, sub$g2, xout = .data$alpha, rule = 2)$y
-      }
-    }
-  ) %>%
-  ungroup() %>%
-  filter(!is.na(g2_theo))
+conv_df <- read.csv("results/convergence_g2.csv")
 
-fig6 <- ggplot(fig6_validation, aes(x = g2_theo, y = g2_empirical,
-                                     colour = distribution,
-                                     shape = factor(N))) +
-  geom_abline(slope = 1, intercept = 0,
-              linetype = "dashed", colour = "grey50", linewidth = 0.4) +
-  geom_point(size = 2.5, alpha = 0.8) +
-  scale_colour_brewer(palette = "Dark2", name = "Distribution") +
-  scale_shape_manual(values = c(`200` = 16, `500` = 17), name = "N") +
-  labs(title = expression("Proxy diagnostic for " * g[2](alpha) * ": closed form vs M-estimator"),
-       subtitle = "Points near the diagonal would indicate agreement; departures show proxy mismatch; N = 200, 500",
-       x = expression(g[2]^{"(theo)"} * "(alpha) from the closed-form moment formula"),
-       y = expression(g[2]^{"(emp)"} * "(alpha) from 1000 MC replications")) +
-  coord_equal(xlim = c(0, 2.65), ylim = c(0, 2.65)) +
+# Theoretical g_2 at the two convergence endpoints, per distribution.
+conv_theo <- conv_df %>%
+  distinct(distribution, alpha) %>%
+  rowwise() %>%
+  mutate(g2_theo = {
+    sub <- theo_interp_df %>% filter(distribution == .env$distribution)
+    if (nrow(sub) == 0) NA_real_
+    else approx(sub$alpha, sub$g2, xout = .data$alpha, rule = 2)$y
+  }) %>%
+  ungroup()
+
+conv_plot <- conv_df %>%
+  mutate(distribution = factor(distribution, levels = sym_levels),
+         alpha_lbl = factor(sprintf("α = %.2f", alpha)))
+conv_theo_plot <- conv_theo %>%
+  mutate(distribution = factor(distribution, levels = sym_levels),
+         alpha_lbl = factor(sprintf("α = %.2f", alpha)))
+
+fig6 <- ggplot(conv_plot, aes(x = N, y = g2_empirical_full, colour = alpha_lbl)) +
+  geom_hline(data = conv_theo_plot,
+             aes(yintercept = g2_theo, colour = alpha_lbl),
+             linetype = "dashed", linewidth = 0.45) +
+  geom_line(linewidth = 0.6) +
+  geom_point(size = 1.9) +
+  facet_wrap(~ distribution, scales = "free_y") +
+  scale_x_log10(breaks = c(100, 250, 500, 1000, 2000, 4000)) +
+  scale_colour_viridis_d(option = "plasma", end = 0.8, name = expression(alpha)) +
+  labs(title = expression("Convergence of the full " * F[2]^{-1} * bold(b) *
+                          " estimator's " * hat(g)[2](alpha) * " to closed-form theory"),
+       subtitle = "Dashed: theoretical g_2(alpha) from the closed-form moment formula. Symmetric laws; M = 2000 replications.",
+       x = "Sample size N (log scale)",
+       y = expression(hat(g)[2](alpha) * " = " * Var[hat(mu)[PATP]] / Var[hat(mu)[OLS]])) +
   theme_patp
 
 ggsave(file.path(fig_dir, "fig6_validation.pdf"), fig6,
@@ -100,20 +112,19 @@ ggsave(file.path(fig_dir, "fig6_validation.pdf"), fig6,
 cat("Saved fig6_validation.pdf\n")
 
 # ===================================================================
-# Figure 7 (bonus): bias-variance decomposition
+# Figure 7: bias-variance decomposition (full F_2^{-1}b estimator)
 # ===================================================================
 
 bv_df <- mc_df %>%
-  pivot_longer(cols = c(var_patp, bias),
+  pivot_longer(cols = c(var_full, bias_full),
                names_to = "metric",
                values_to = "value") %>%
   mutate(
-    value = ifelse(metric == "bias", abs(value), value),
+    value = ifelse(metric == "bias_full", abs(value), value),
     metric = recode(metric,
-                    var_patp = "Var[μ̂_PATP]",
-                    bias     = "|Bias|"),
-    distribution = factor(distribution,
-                          levels = c("Laplace", "GG(1.5)", "GG(4)", "Beta(2,5)"))
+                    var_full  = "Var[mu_PATP]",
+                    bias_full = "|Bias|"),
+    distribution = factor(distribution, levels = sym_levels)
   )
 
 fig7 <- ggplot(bv_df %>% filter(N == 200), aes(x = alpha, y = value,
@@ -122,7 +133,7 @@ fig7 <- ggplot(bv_df %>% filter(N == 200), aes(x = alpha, y = value,
   geom_point(size = 1.8) +
   facet_wrap(~ distribution, scales = "free_y") +
   scale_y_log10(labels = scales::label_scientific(digits = 1)) +
-  scale_colour_manual(values = c("Var[μ̂_PATP]" = "#1f78b4",
+  scale_colour_manual(values = c("Var[mu_PATP]" = "#1f78b4",
                                  "|Bias|" = "#e31a1c"),
                       name = "") +
   labs(title = "Bias-variance decomposition for the PATP mean estimator (N = 200)",
@@ -135,8 +146,9 @@ ggsave(file.path(fig_dir, "fig7_bias_variance.pdf"), fig7,
 cat("Saved fig7_bias_variance.pdf\n")
 
 # ===================================================================
-# Figure 8: full F^{-1}b vs proxy vs theoretical g_2(alpha)
-# (highlight the central Comp Stat contribution: correctness improvement)
+# Figure 8: scalar proxy vs full F_2^{-1}b vs closed-form theory (N = 500).
+# Motivates the switch: the naive scalar M-estimator proxy departs from theory
+# (badly at the signed-parity end), the full normal-equation estimator tracks it.
 # ===================================================================
 
 fig8_df <- mc_df %>%
@@ -149,13 +161,11 @@ fig8_df <- mc_df %>%
   mutate(estimator = recode(estimator,
                             g2_proxy = "Scalar M-estimator (proxy)",
                             g2_full  = "Full F^{-1}b normal equations"),
-         distribution = factor(distribution,
-                               levels = c("Laplace", "GG(1.5)", "GG(4)", "Beta(2,5)")))
+         distribution = factor(distribution, levels = sym_levels))
 
 fig8_theo <- theo_interp_df %>%
-  filter(distribution %in% levels(fig8_df$distribution)) %>%
-  mutate(distribution = factor(distribution,
-                               levels = c("Laplace", "GG(1.5)", "GG(4)", "Beta(2,5)")))
+  filter(distribution %in% sym_levels) %>%
+  mutate(distribution = factor(distribution, levels = sym_levels))
 
 fig8 <- ggplot() +
   geom_line(data = fig8_theo,
@@ -172,7 +182,7 @@ fig8 <- ggplot() +
                                  "Full F^{-1}b normal equations" = 16),
                      name = "Estimator") +
   labs(title = expression("Empirical " * g[2](alpha) * " under proxy vs full PMM normal equations (N = 500)"),
-       subtitle = "Solid grey line: closed-form theoretical g_2(alpha) from eq. (4.18). Full estimator approaches theory for symmetric laws.",
+       subtitle = "Solid grey line: closed-form theoretical g_2(alpha). The full estimator tracks theory; the proxy does not.",
        x = expression(alpha),
        y = expression(hat(g)[2](alpha) * " = " * Var[hat(mu)[PATP]] * " / " * Var[hat(mu)[OLS]])) +
   theme_patp +

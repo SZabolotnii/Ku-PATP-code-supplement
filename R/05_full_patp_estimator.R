@@ -35,9 +35,13 @@ p_i <- function(i, alpha) {
 # 2. Empirical moments at a given mu
 # ====================================================================
 
-empirical_moments <- function(x, mu, p) {
+empirical_moments <- function(x, mu, p, eps = 0) {
   xi <- x - mu
-  abs_xi <- abs(xi)
+  # eps > 0 applies the Sec.5 smoothing safeguard |xi| -> sqrt(xi^2 + eps^2),
+  # which bounds the otherwise singular negative-order weight |xi|^{p-1} (p<1)
+  # for samples with mass near the origin (e.g. real regression residuals).
+  # eps = 0 reproduces the exact unsmoothed moments used in the simulations.
+  abs_xi <- if (eps > 0) sqrt(xi^2 + eps^2) else abs(xi)
   list(
     nu_pm1  = mean(abs_xi^(p - 1)),
     nu_pp1  = mean(abs_xi^(p + 1)),
@@ -52,8 +56,8 @@ empirical_moments <- function(x, mu, p) {
 # 3. F_2, b, and h^* at a given mu
 # ====================================================================
 
-build_F2_b_hstar <- function(x, mu, p, cond_max = 1e10) {
-  m   <- empirical_moments(x, mu, p)
+build_F2_b_hstar <- function(x, mu, p, cond_max = 1e10, eps = 0) {
+  m   <- empirical_moments(x, mu, p, eps = eps)
   F11 <- m$c_2
   F22 <- m$nu_2p - m$sig_p^2
   F12 <- m$nu_pp1 - m$mean_xi * m$sig_p
@@ -205,7 +209,7 @@ patp_full <- function(x, alpha, mu_init = NULL, max_iter = 3) {
 # 8. Self-test
 # ====================================================================
 
-if (sys.nframe() == 0L || identical(environment(), globalenv())) {
+if (sys.nframe() == 0L) {
   if (!exists(".patp_full_quicktest_done")) {
     set.seed(2026)
 

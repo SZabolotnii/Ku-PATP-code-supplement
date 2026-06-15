@@ -1,0 +1,2 @@
+"dataset","series","n","skew","exkurt","alpha_star","g2_realized","var_reduction_pct","nu_matched_t","g2_theory_matched_t","g2_median","g2_huber"
+"EuStockMarkets daily log-returns","FTSE",1859,0.1096,2.64,0.55,0.8676,13.2,6.27,0.8735,0.8591,0.8875

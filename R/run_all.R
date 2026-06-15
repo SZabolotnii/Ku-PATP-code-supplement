@@ -1,19 +1,24 @@
 #!/usr/bin/env Rscript
-# run_all.R — Pipeline driver для PATP
-# Запускає всі скрипти послідовно:
-#   01 → теоретичні g_2(α)
-#   02 → теоретичні графіки fig1-fig4
-#   05 → визначення повного F^{-1}b PATP естиматора (Phase B)
-#   03 → Monte Carlo симуляції (proxy + full estimator)
-#   04 → експериментальні графіки fig5-fig8
+# run_all.R - PATP code-supplement pipeline driver.
+#   01 -> theoretical g_2(alpha) for the symmetric canonical laws (CSV)
+#   02 -> theoretical figures fig1-fig4
+#   05 -> full F^{-1}b estimator definitions (Algorithm 1)
+#   03 -> Monte Carlo: full estimator (primary) + proxy comparison + convergence
+#   04 -> experimental figures fig5-fig8
+#   06 -> regression-coefficient validation (Monte Carlo)
+#   07 -> real-data application (EuStockMarkets daily log-returns)
+#
+# Scripts 01-04 execute their analysis when sourced; 05 only defines functions.
+# Scripts 06 and 07 carry a top-level run guard (if sys.nframe() == 0L), so they
+# are invoked as separate Rscript processes to trigger their analysis blocks.
 
-# Note: 05 is sourced inside 03 as well; listing it separately here
-# ensures self-test output appears in the run log.
-scripts <- c("01_theoretical_g2.R",
-             "02_visualizations.R",
-             "05_full_patp_estimator.R",
-             "03_monte_carlo.R",
-             "04_results_viz.R")
+scripts_sourced <- c("01_theoretical_g2.R",
+                     "02_visualizations.R",
+                     "05_full_patp_estimator.R",
+                     "03_monte_carlo.R",
+                     "04_results_viz.R")
+scripts_spawned <- c("06_patp_regression.R",
+                     "07_real_data_application.R")
 
 # Resolve script directory so `Rscript R/run_all.R` from repo root works
 # the same as `cd R && Rscript run_all.R`.
@@ -33,10 +38,18 @@ setwd(script_dir)
 on.exit(setwd(old_wd), add = TRUE)
 
 t_start <- Sys.time()
-for (s in scripts) {
+for (s in scripts_sourced) {
   cat("\n=== Running", s, "===\n")
   t0 <- Sys.time()
   source(s)
+  cat(sprintf("[%.1fs] %s done\n",
+              as.numeric(Sys.time() - t0, units = "secs"), s))
+}
+for (s in scripts_spawned) {
+  cat("\n=== Running", s, "(separate process) ===\n")
+  t0 <- Sys.time()
+  st <- system2("Rscript", s)
+  if (st != 0L) stop("failed: ", s)
   cat(sprintf("[%.1fs] %s done\n",
               as.numeric(Sys.time() - t0, units = "secs"), s))
 }

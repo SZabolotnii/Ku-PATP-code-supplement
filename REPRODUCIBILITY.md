@@ -8,7 +8,10 @@ The R pipeline is deterministic where seeds are used inside the Monte Carlo scri
 Rscript R/run_all.R
 ```
 
-from the repository root regenerates the CSV summaries and the seven manuscript figures.
+from the repository root regenerates the CSV summaries (including the
+convergence, regression-coefficient, and real-data outputs) and the eight
+manuscript figures. Scripts `06` and `07` carry a top-level run guard and are
+launched as separate `Rscript` processes by `run_all.R`.
 
 ## Formal checks
 

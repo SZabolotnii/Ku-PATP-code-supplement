@@ -51,6 +51,18 @@ nu_q_gg <- function(q, beta) {
 }
 sigma_q_gg <- function(q, beta) 0
 
+# Student-t(ν) standardised to var = 1; symmetric, finite moments for q < ν
+# (ν > 4 keeps ν_4 finite at α=1). With Y = X·sqrt((ν-2)/ν), X ~ t(ν):
+#   E|Y|^q = ((ν-2)/ν)^{q/2}·ν^{q/2}·Γ((q+1)/2)Γ((ν-q)/2)/(Γ(1/2)Γ(ν/2)),  −1<q<ν.
+nu_q_t <- function(q, nu) {
+  if (q <= -1 || q >= nu) return(NA_real_)
+  s <- sqrt((nu - 2) / nu)
+  EXq <- nu^(q / 2) * gamma((q + 1) / 2) * gamma((nu - q) / 2) /
+         (gamma(0.5) * gamma(nu / 2))
+  s^q * EXq
+}
+sigma_q_t <- function(q, nu) 0  # симетричний
+
 # Beta(2, 5) shifted to mean 0, scaled to var = 1 (numerical)
 beta_density_centred <- function(x, a = 2, b = 5) {
   # X ~ Beta(a, b); E[X] = a/(a+b); Var = ab/((a+b)^2(a+b+1))
@@ -111,7 +123,11 @@ g2_alpha <- function(alpha, c_2, nu_q_fn, sigma_q_fn) {
 # 4. Обчислення на сітці α
 # ====================================================================
 
-alpha_grid <- seq(0.02, 0.98, by = 0.02)
+# Include exact endpoints alpha in {0, 1}: there is NO singularity there (only
+# alpha = 1/2 is degenerate), so the summary can report the exact g2(0), g2(1)
+# that match Sec. 4.2 analytically — e.g. Laplace g2(1) = 3/4 exactly, not the
+# old 0.98-grid proxy 0.7438.
+alpha_grid <- sort(unique(c(0, 1, seq(0.02, 0.98, by = 0.02))))
 alpha_grid <- alpha_grid[abs(alpha_grid - 0.5) > 0.03]  # exclude near-degeneracy
 
 distributions <- list(
@@ -127,8 +143,8 @@ distributions <- list(
        nu_q_fn = function(q) nu_q_gg(q, 1.5), sigma_q_fn = function(q) 0),
   list(name = "GG(4)",        c_2 = 1,
        nu_q_fn = function(q) nu_q_gg(q, 4), sigma_q_fn = function(q) 0),
-  list(name = "Beta(2,5)",    c_2 = 1,
-       nu_q_fn = nu_q_beta25,             sigma_q_fn = sigma_q_beta25)
+  list(name = "Student-t(6)", c_2 = 1,
+       nu_q_fn = function(q) nu_q_t(q, 6), sigma_q_fn = function(q) 0)
 )
 
 results <- list()
@@ -156,8 +172,8 @@ write.csv(theoretical_g2, "results/theoretical_g2.csv", row.names = FALSE)
 summary_tbl <- theoretical_g2 %>%
   group_by(distribution) %>%
   summarise(
-    g2_at_0       = round(g2[which.min(abs(alpha - 0.02))], 4),
-    g2_at_1       = round(g2[which.min(abs(alpha - 0.98))], 4),
+    g2_at_0       = round(g2[which.min(abs(alpha - 0))], 4),   # exact fractal endpoint
+    g2_at_1       = round(g2[which.min(abs(alpha - 1))], 4),   # exact signed-parity endpoint
     g2_min        = round(min(g2, na.rm = TRUE), 4),
     alpha_optimal = round(alpha[which.min(g2)], 3),
     .groups = "drop"

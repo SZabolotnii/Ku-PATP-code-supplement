@@ -30,7 +30,8 @@ rgg <- function(n, beta) {
   s * c_scale * z^(1 / beta)
 }
 
-# Beta(2, 5), centred and scaled to var = 1
+# Beta(2, 5), centred and scaled to var = 1 — DROPPED from the illustration set
+# per D6v2 (asymmetric → Form-B O(σ_p) bias). Retained (unused) for reference.
 rbeta25 <- function(n, a = 2, b = 5) {
   x <- rbeta(n, a, b)
   mu <- a / (a + b)
@@ -38,10 +39,15 @@ rbeta25 <- function(n, a = 2, b = 5) {
   (x - mu) / sqrt(var_b)
 }
 
+# Student-t(ν) standardised to var = 1 (symmetric, heavy-tailed; ν>4 ⇒ finite γ4)
+rt6 <- function(n, nu = 6) {
+  rt(n, df = nu) * sqrt((nu - 2) / nu)
+}
+
 # Test generators
 stopifnot(abs(var(rgg(100000, 1.5)) - 1) < 0.05)
 stopifnot(abs(var(rgg(100000, 4)) - 1) < 0.05)
-stopifnot(abs(var(rbeta25(100000)) - 1) < 0.05)
+stopifnot(abs(var(rt6(100000)) - 1) < 0.05)
 
 # ===================================================================
 # 2. PATP estimators: proxy (scalar M-estimator) and full (F^{-1}b)
@@ -150,10 +156,10 @@ estimate_baseline <- function(x, estimator) {
 # ===================================================================
 
 distributions <- list(
-  Laplace      = function(n) sqrt(0.5) * rexp(n) * sample(c(-1, 1), n, TRUE),
-  `GG(1.5)`    = function(n) rgg(n, 1.5),
-  `GG(4)`      = function(n) rgg(n, 4),
-  `Beta(2,5)`  = function(n) rbeta25(n)
+  Laplace        = function(n) sqrt(0.5) * rexp(n) * sample(c(-1, 1), n, TRUE),
+  `GG(1.5)`      = function(n) rgg(n, 1.5),
+  `GG(4)`        = function(n) rgg(n, 4),
+  `Student-t(6)` = function(n) rt6(n)
 )
 
 alpha_grid <- c(0.05, 0.30, 0.70, 0.95)
@@ -306,10 +312,46 @@ for (N in runtime_N) {
 runtime_df <- bind_rows(runtime_results)
 
 # ===================================================================
+# 3C. Convergence of the full F^{-1}b estimator's g_2 to closed-form theory
+#     (large-N sweep at the fractal/signed-parity endpoints; symmetric laws).
+#     This is the DIRECT validation that the closed-form g_2(alpha) is the
+#     asymptotic efficiency of the PATP normal-equation estimator — it answers
+#     the reviewer's central concern. The scalar proxy is NOT used here.
+# ===================================================================
+
+conv_alpha <- c(0.05, 0.95)   # fractal vs signed-parity endpoints
+conv_N     <- c(100, 250, 500, 1000, 2000, 4000)
+M_conv     <- 5000            # high replication: this is the central validation figure
+
+conv_results <- list()
+for (dist_name in names(distributions)) {
+  rgen <- distributions[[dist_name]]
+  for (Nc in conv_N) {
+    var_ols_c <- var(replicate(M_conv, mean(rgen(Nc))))
+    for (alpha in conv_alpha) {
+      fm <- numeric(M_conv)
+      for (j in seq_len(M_conv)) {
+        x <- rgen(Nc)
+        fm[j] <- patp_full(x, alpha, mu_init = mean(x), max_iter = 10)
+      }
+      fm <- fm[is.finite(fm)]
+      conv_results[[length(conv_results) + 1]] <- data.frame(
+        distribution = dist_name, N = Nc, alpha = alpha,
+        var_ols = var_ols_c, var_full = var(fm),
+        g2_empirical_full = var(fm) / var_ols_c
+      )
+    }
+  }
+  cat(sprintf("convergence sweep: %s done\n", dist_name))
+}
+conv_df <- bind_rows(conv_results)
+
+# ===================================================================
 # 4. Збереження результатів
 # ===================================================================
 
 dir.create("results", showWarnings = FALSE)
+write.csv(conv_df, "results/convergence_g2.csv", row.names = FALSE)
 write.csv(mc_df, "results/monte_carlo.csv", row.names = FALSE)
 write.csv(baseline_df, "results/robust_baselines.csv", row.names = FALSE)
 write.csv(baseline_summary, "results/robust_baselines_summary.csv", row.names = FALSE)
