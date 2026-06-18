@@ -9,9 +9,10 @@ Rscript R/run_all.R
 ```
 
 from the repository root regenerates the CSV summaries (including the
-convergence, regression-coefficient, and real-data outputs) and the eight
-manuscript figures. Scripts `06` and `07` carry a top-level run guard and are
-launched as separate `Rscript` processes by `run_all.R`.
+convergence, regression-coefficient, real-data, and bootstrap outputs) and the
+nine manuscript figures. Scripts `06` and `07` are launched as separate
+`Rscript` processes by `run_all.R`, which sources `04_results_viz.R` last so
+that fig9 can consume the bootstrap CSVs written by `07`.
 
 ## Formal checks
 

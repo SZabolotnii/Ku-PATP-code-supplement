@@ -192,4 +192,53 @@ ggsave(file.path(fig_dir, "fig8_proxy_vs_full.pdf"), fig8,
        width = 6.8, height = 5.2, device = cairo_pdf)
 cat("Saved fig8_proxy_vs_full.pdf\n")
 
+# ===================================================================
+# Figure 9: real-data bootstrap (§6.6, EuStockMarkets FTSE log-returns)
+#   (a) bootstrap distributions of competing location estimators
+#   (b) bootstrap distribution of the PATP estimate across the alpha grid
+# Built from the B=2000 bootstrap draws saved by 07_real_data_application.R.
+# ===================================================================
+boot_est_path  <- "results/real_data_bootstrap_estimators.csv"
+boot_grid_path <- "results/real_data_bootstrap_grid.csv"
+
+if (file.exists(boot_est_path) && file.exists(boot_grid_path)) {
+  boot_est  <- read.csv(boot_est_path, stringsAsFactors = FALSE)
+  boot_grid <- read.csv(boot_grid_path, stringsAsFactors = FALSE)
+  rd        <- read.csv("results/real_data_application.csv")
+  alpha_st  <- rd$alpha_star[1]
+
+  # order estimators with PATP last; keep the dynamic "PATP (α*=..)" label
+  patp_lbl   <- grep("^PATP", unique(boot_est$estimator), value = TRUE)
+  est_levels <- c("Sample mean", "Median", "Huber", patp_lbl)
+  boot_est$estimator <- factor(boot_est$estimator, levels = est_levels)
+
+  fig9a <- ggplot(boot_est, aes(x = estimator, y = value, fill = estimator)) +
+    geom_boxplot(outlier.size = 0.4, outlier.alpha = 0.3, linewidth = 0.35,
+                 width = 0.6, show.legend = FALSE) +
+    scale_fill_manual(values = c("Sample mean" = "grey75", "Median" = "#a6cee3",
+                                 "Huber" = "#b2df8a", setNames("#1f78b4", patp_lbl))) +
+    labs(title = "(a) Bootstrap location estimates by estimator",
+         x = NULL, y = "Estimated location (standardised scale)") +
+    theme_patp +
+    theme(axis.text.x = element_text(angle = 20, hjust = 1))
+
+  fig9b <- ggplot(boot_grid, aes(x = factor(alpha), y = value)) +
+    geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.25, linewidth = 0.3,
+                 fill = "grey90", width = 0.7) +
+    geom_vline(xintercept = which(sort(unique(boot_grid$alpha)) == alpha_st),
+               linetype = "dashed", colour = "#e31a1c", linewidth = 0.5) +
+    labs(title = expression("(b) Bootstrap PATP estimate across the " * alpha * " grid"),
+         subtitle = "Dispersion is minimised near the selected α* (dashed red)",
+         x = expression(alpha), y = "PATP location estimate") +
+    theme_patp +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 7))
+
+  fig9 <- gridExtra::arrangeGrob(fig9a, fig9b, ncol = 1, heights = c(1, 1.1))
+  ggsave(file.path(fig_dir, "fig9_real_data_bootstrap.pdf"), fig9,
+         width = 6.8, height = 7.2, device = cairo_pdf)
+  cat("Saved fig9_real_data_bootstrap.pdf\n")
+} else {
+  cat("Skipping Fig 9: run 07_real_data_application.R first to generate bootstrap CSVs.\n")
+}
+
 cat("\nAll experimental figures saved to", fig_dir, "\n")

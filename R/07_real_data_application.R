@@ -122,6 +122,24 @@ cat(sprintf("baselines vs mean: median g_2 = %.4f,  Huber g_2 = %.4f\n", g2_med,
 dir.create("results", showWarnings = FALSE)
 write.csv(data.frame(alpha = ag, g2_realized = g2_real),
           "results/real_data_g2_curve.csv", row.names = FALSE)
+
+# bootstrap draws for the boxplot figure (Fig. 9, built in 04_results_viz.R):
+#  (a) competing location estimators, (b) PATP estimate across the alpha grid.
+boot_est <- rbind(
+  data.frame(estimator = "Sample mean",          value = est_mean),
+  data.frame(estimator = "Median",               value = est_med),
+  data.frame(estimator = "Huber",                value = est_huber),
+  data.frame(estimator = sprintf("PATP (α*=%.2f)", alpha_st),
+             value = est_patp[, k_star])
+)
+write.csv(boot_est, "results/real_data_bootstrap_estimators.csv", row.names = FALSE)
+
+boot_grid <- data.frame(
+  alpha = rep(ag, each = B),
+  value = as.vector(est_patp)
+)
+boot_grid <- boot_grid[is.finite(boot_grid$value), ]
+write.csv(boot_grid, "results/real_data_bootstrap_grid.csv", row.names = FALSE)
 write.csv(shape[, c("series", "n", "skew", "exkurt")],
           "results/real_data_series.csv", row.names = FALSE)
 out <- data.frame(
@@ -138,3 +156,4 @@ out <- data.frame(
 )
 write.csv(out, "results/real_data_application.csv", row.names = FALSE)
 cat("\nSaved results/real_data_application.csv, real_data_g2_curve.csv, real_data_series.csv\n")
+cat("Saved results/real_data_bootstrap_estimators.csv, real_data_bootstrap_grid.csv\n")
