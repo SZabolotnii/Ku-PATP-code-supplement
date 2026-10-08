@@ -12,8 +12,11 @@ positive definiteness of moment matrices.
 
 namespace PATP
 
-/-- Auxiliary quadratic factor controlling `p_i(α) - p_j(α)`. -/
-noncomputable def exponentCollisionFactor (i j : ℕ) (α : ℝ) : ℝ :=
+/-- Auxiliary quadratic factor controlling `p_i(α) - p_j(α)`.
+
+This is a pure polynomial expression in `α` with rational coefficients in `i, j`; it does not
+involve `1/i`, so it stays computable even though `PATP.piAlpha` is `noncomputable`. -/
+def exponentCollisionFactor (i j : ℕ) (α : ℝ) : ℝ :=
   1 + (((i : ℝ) * (j : ℝ)) - 3) * α
     - (2 * ((i : ℝ) * (j : ℝ)) - 2) * α ^ 2
 
@@ -51,7 +54,9 @@ theorem exponentCollisionFactor_at_second_root
     (i j : ℕ) (hij : (i : ℝ) * (j : ℝ) ≠ 1) :
     exponentCollisionFactor i j (-(1 / (((i : ℝ) * (j : ℝ)) - 1))) = 0 := by
   unfold exponentCollisionFactor
-  field_simp [hij]
+  -- `field_simp` needs the denominator `ij − 1` in `≠ 0` form, not `ij ≠ 1`.
+  have hij' : (i : ℝ) * (j : ℝ) - 1 ≠ 0 := sub_ne_zero.mpr hij
+  field_simp [hij']
   ring
 
 end PATP
